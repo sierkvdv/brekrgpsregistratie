@@ -8,7 +8,8 @@ nagebootste server, zodat elke uitkomst te zien is zonder dat er iets geactiveer
 
 | bestand | wat het is |
 |---|---|
-| [`gps-registratie.html`](gps-registratie.html) | **dit is wat je plakt** — het formulier zelf |
+| [`gps-registratie.html`](gps-registratie.html) | **dit plak je op de pagina** — het formulier zelf |
+| [`wordpress-endpoint.php`](wordpress-endpoint.php) | **dit zet je als plugin neer** — het endpoint erachter |
 | [`index.html`](index.html) | de demo hierboven; de nagebootste server hoort er niet bij |
 
 ---
@@ -47,7 +48,25 @@ Het lettertype erft van het thema (`font-family: inherit`). Alle klassenamen beg
 
 ---
 
-## Het endpoint — het enige dat jullie zelf bouwen
+## Het endpoint
+
+Er ligt een kant-en-klare WordPress-plugin: [`wordpress-endpoint.php`](wordpress-endpoint.php).
+Zet hem in `wp-content/plugins/gps-registratie/`, zet de plugin aan, en het adres is
+`/wp-json/gps/v1/activeer`. Vul dat adres in bij `ENDPOINT` in het formulier en de twee praten
+met elkaar.
+
+Die plugin doet alles: de invoer opnieuw controleren aan de serverkant, een rem tegen het raden
+van IMEI-nummers, en het vertalen van het antwoord naar de drie uitkomsten die het formulier
+kent. **Eén functie is bewust leeg gelaten**: de aanroep naar de leverancier van de GPS-modules.
+Daarvoor is een account en hun documentatie nodig, en die kan hier niet in.
+
+Zolang die functie leeg is, wijst het endpoint elke aanvraag netjes af en schrijft het een regel
+in het logboek — zodat je de hele keten kunt testen voordat de koppeling er is.
+
+Wat je bij de leverancier moet opvragen staat in de plugin zelf; het is een lijstje van vier
+vragen.
+
+### De vorm tussen formulier en endpoint
 
 Het formulier praat verder met niets.
 
@@ -57,7 +76,7 @@ Het formulier praat verder met niets.
 POST <jullie endpoint>
 Content-Type: application/json
 
-{ "frameNumber": "EFY8053687", "IMEI": "351756051523999" }
+{ "frameNumber": "EFY8053687", "imei": "351756051523999" }
 ```
 
 **Geslaagd** — statuscode `200`. Het lichaam wordt niet gelezen.
@@ -74,9 +93,10 @@ Content-Type: application/json
 | `ERROR_REPEATED_IMEI` | Dubbele IMEI. Het IMEI-nummer bestaat al |
 | *iets anders, of geen `status`* | Er is iets fout gegaan. Probeer het opnieuw. |
 
-Achter dit endpoint hoort de aanroep naar de leverancier van de GPS-modules: die claimt het
-apparaat op het IMEI-nummer en koppelt het aan de fiets. Welke leverancier dat is en hoe die
-aanroep eruitziet, hoor je van Sierk — dat staat bewust niet in deze openbare repository.
+De veldnaam `imei` is met kleine letters — zo staat hij ook in het bestaande dealerportaal.
+
+Welke leverancier er achter dit endpoint hoort en hoe je daar een account krijgt, hoor je van
+Sierk. Dat staat bewust niet in deze openbare repository.
 
 ---
 
