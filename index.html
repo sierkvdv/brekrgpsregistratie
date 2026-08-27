@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GPS-module registreren — werkende demo</title>
+<style>
+  :root {
+    --pagina: #f6f7f8;
+    --kaart: #ffffff;
+    --rand: #e3e5e8;
+    --tekst: #16181d;
+    --gedempt: #6b7280;
+    --accent: #111111;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2rem 1rem 4rem;
+    background: var(--pagina);
+    color: var(--tekst);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+  }
+  .omhulsel { max-width: 62rem; margin: 0 auto; }
+  header { margin-bottom: 2rem; }
+  h1 { margin: 0 0 .4rem; font-size: 1.6rem; }
+  header p { margin: 0; color: var(--gedempt); max-width: 46rem; }
+  .kolommen { display: grid; grid-template-columns: 1fr 20rem; gap: 1.5rem; align-items: start; }
+  @media (max-width: 800px) { .kolommen { grid-template-columns: 1fr; } }
+  .kaart {
+    background: var(--kaart);
+    border: 1px solid var(--rand);
+    border-radius: 10px;
+    padding: 1.75rem;
+  }
+  .paneel h2 { margin: 0 0 .3rem; font-size: 1rem; }
+  .paneel p.hint { margin: 0 0 1rem; font-size: .82rem; color: var(--gedempt); }
+  .keuze { display: block; margin-bottom: .5rem; font-size: .88rem; cursor: pointer; }
+  .keuze input { margin-right: .5rem; }
+  .paneel button {
+    width: 100%; margin-top: .75rem; padding: .55rem;
+    border: 1px solid var(--rand); border-radius: 5px;
+    background: #fff; font: inherit; font-size: .85rem; cursor: pointer;
+  }
+  .paneel button:hover { background: #f0f1f3; }
+  .logregel {
+    margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--rand);
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: .74rem; color: var(--gedempt); white-space: pre-wrap; word-break: break-all;
+    min-height: 5rem;
+  }
+  .voet { margin-top: 2rem; font-size: .84rem; color: var(--gedempt); }
+  .voet code { background: #eceef1; padding: .1rem .3rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="omhulsel">
+
+  <header>
+    <h1>GPS-module registreren — werkende demo</h1>
+    <p>
+      Dit is het formulier precies zoals het straks op de site staat. De server wordt hier
+      nagebootst, zodat elke uitkomst te zien is zonder dat er iets geactiveerd wordt.
+      Kies rechts wat de server moet antwoorden en dien het formulier in.
+    </p>
+  </header>
+
+  <div class="kolommen">
+
+    <div class="kaart">
+      <!-- ══ HIERONDER STAAT DE WIDGET, LETTERLIJK ZOALS IN gps-registratie.html ══ -->
+
+      <div class="gps-widget" id="gps-widget">
+        <h2 class="gps-widget__titel">Registreer GPS-module</h2>
+        <p class="gps-widget__uitleg">
+          Hier kunt u de optionele GPS-module koppelen aan een fiets.
+        </p>
+
+        <form class="gps-widget__form" novalidate>
+          <div class="gps-widget__veld">
+            <label class="gps-widget__label" for="gps-framenummer">Framenummer</label>
+            <input class="gps-widget__invoer" id="gps-framenummer" name="frameNumber"
+                   type="text" maxlength="50" autocomplete="off">
+            <p class="gps-widget__fout" data-fout-voor="frameNumber" role="alert"></p>
+          </div>
+
+          <div class="gps-widget__veld">
+            <label class="gps-widget__label" for="gps-imei">
+              IMEI
+              <button class="gps-widget__info" type="button" aria-label="Wat is een IMEI-nummer?">i</button>
+              <span class="gps-widget__ballon" role="tooltip">
+                IMEI is een unieke code van 15 tot 17 cijfers voor elk mobiel apparaat.
+                Deze code wordt gebruikt om de GPS-module te identificeren. We hebben het nodig
+                om de juiste GPS-module te claimen, zodat deze geactiveerd kan worden.
+              </span>
+            </label>
+            <input class="gps-widget__invoer" id="gps-imei" name="IMEI"
+                   type="text" maxlength="17" autocomplete="off" inputmode="numeric">
+            <p class="gps-widget__fout" data-fout-voor="IMEI" role="alert"></p>
+          </div>
+
+          <p class="gps-widget__melding" data-melding role="status"></p>
+
+          <button class="gps-widget__knop" type="submit">Indienen</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="kaart paneel">
+      <h2>Wat antwoordt de server?</h2>
+      <p class="hint">Alleen in deze demo. Op de echte site praat het formulier met jullie endpoint.</p>
+
+      <label class="keuze"><input type="radio" name="uitkomst" value="ok" checked> Geslaagd (200)</label>
+      <label class="keuze"><input type="radio" name="uitkomst" value="ERROR_REPEATED_IMEI"> Dubbele IMEI</label>
+      <label class="keuze"><input type="radio" name="uitkomst" value="ERROR_CLAIM_DEVICE"> Koppelen mislukt</label>
+      <label class="keuze"><input type="radio" name="uitkomst" value="onbekend"> Onbekende fout</label>
+      <label class="keuze"><input type="radio" name="uitkomst" value="offline"> Server onbereikbaar</label>
+
+      <button type="button" id="vulin">Vul een geldig voorbeeld in</button>
+
+      <div class="logregel" id="log">Nog niets verstuurd.</div>
+    </div>
+
+  </div>
+
+  <p class="voet">
+    Probeer ook wat er misgaat: een framenummer met een streepje, een IMEI van 11 cijfers, of
+    gewoon op <strong>Indienen</strong> drukken met lege velden. De meldingen en het moment waarop
+    ze verschijnen zijn overgenomen uit het bestaande dealerportaal.
+    Het formulier zelf staat in <code>gps-registratie.html</code>.
+  </p>
+
+</div>
+
+<style>
+/* ══ De stijl van de widget, letterlijk uit gps-registratie.html ══ */
+.gps-widget {
+  --gps-kleur: #111111;
+  --gps-kleur-tekst: #111111;
+  --gps-kleur-rand: #cccccc;
+  --gps-kleur-fout: #c0392b;
+  --gps-kleur-goed: #1e7e34;
+  --gps-radius: 4px;
+  --gps-max-breedte: 32rem;
+  max-width: var(--gps-max-breedte);
+  color: var(--gps-kleur-tekst);
+  font-family: inherit;
+  line-height: 1.5;
+}
+.gps-widget__titel { margin: 0 0 .5rem; font-size: 1.5rem; font-weight: 600; }
+.gps-widget__uitleg { margin: 0 0 1.5rem; }
+.gps-widget__veld { margin-bottom: 1.25rem; }
+.gps-widget__label { display: block; margin-bottom: .35rem; font-size: .9rem; font-weight: 500; }
+.gps-widget__invoer {
+  width: 100%; box-sizing: border-box; padding: .7rem .8rem;
+  border: 1px solid var(--gps-kleur-rand); border-radius: var(--gps-radius);
+  font: inherit; background: #fff;
+}
+.gps-widget__invoer:focus {
+  outline: none; border-color: var(--gps-kleur); box-shadow: 0 0 0 2px rgba(0, 0, 0, .08);
+}
+.gps-widget__invoer[aria-invalid="true"] { border-color: var(--gps-kleur-fout); }
+.gps-widget__fout { margin: .35rem 0 0; min-height: 1.2em; color: var(--gps-kleur-fout); font-size: .8rem; }
+.gps-widget__info {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.1rem; height: 1.1rem; margin-left: .35rem; padding: 0;
+  border: 1px solid var(--gps-kleur-rand); border-radius: 50%;
+  background: transparent; color: inherit; font-size: .7rem; font-style: italic;
+  cursor: help; vertical-align: middle;
+}
+.gps-widget__ballon {
+  position: absolute; z-index: 10; max-width: 22rem;
+  margin-top: 1.6rem; margin-left: -1rem; padding: .6rem .75rem;
+  border-radius: var(--gps-radius); background: #fff; color: rgba(0, 0, 0, .87);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .18); font-size: .8rem; font-weight: 400;
+  opacity: 0; visibility: hidden; transition: opacity .15s;
+}
+.gps-widget__info:hover + .gps-widget__ballon,
+.gps-widget__info:focus + .gps-widget__ballon { opacity: 1; visibility: visible; }
+.gps-widget__knop {
+  padding: .7rem 1.6rem; border: none; border-radius: var(--gps-radius);
+  background: var(--gps-kleur); color: #fff; font: inherit; font-weight: 500; cursor: pointer;
+}
+.gps-widget__knop:disabled { opacity: .55; cursor: default; }
+.gps-widget__melding { margin: 0 0 1rem; min-height: 1.2em; font-size: .9rem; }
+.gps-widget__melding[data-soort="fout"] { color: var(--gps-kleur-fout); }
+.gps-widget__melding[data-soort="goed"] { color: var(--gps-kleur-goed); }
+@media (max-width: 480px) { .gps-widget__knop { width: 100%; } }
+</style>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   ALLEEN VOOR DEZE DEMO — de nagebootste server.
+   Dit blok hoort NIET bij de code die op de site komt. Het onderschept het
+   verzoek naar het demo-adres en antwoordt met wat er rechts gekozen is.
+   ══════════════════════════════════════════════════════════════════════════ */
+(function () {
+  var DEMO_ADRES = '/demo/gps-activatie';
+  var log = document.getElementById('log');
+
+  function schrijf(regel) {
+    var t = new Date().toTimeString().slice(0, 8);
+    log.textContent = t + '  ' + regel + '\n\n' + log.textContent;
+  }
+
+  var echteFetch = window.fetch.bind(window);
+  window.fetch = function (adres, opties) {
+    if (String(adres).indexOf(DEMO_ADRES) === -1) { return echteFetch(adres, opties); }
+
+    var keuze = document.querySelector('input[name="uitkomst"]:checked').value;
+    var verstuurd = JSON.parse((opties && opties.body) || '{}');
+    schrijf('POST ' + DEMO_ADRES + '\n     ' + JSON.stringify(verstuurd));
+
+    return new Promise(function (klaar, mislukt) {
+      // Een halve seconde vertraging, zodat de knop even uit gaat zoals in het echt.
+      setTimeout(function () {
+        if (keuze === 'offline') {
+          schrijf('     -> geen verbinding');
+          mislukt(new TypeError('Failed to fetch'));
+          return;
+        }
+        if (keuze === 'ok') {
+          schrijf('     <- 200 OK');
+          klaar(new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+          return;
+        }
+        var lichaam = keuze === 'onbekend'
+          ? JSON.stringify({ status: 'IETS_ANDERS' })
+          : JSON.stringify({ status: keuze });
+        schrijf('     <- 400  ' + lichaam);
+        klaar(new Response(lichaam, { status: 400, headers: { 'Content-Type': 'application/json' } }));
+      }, 500);
+    });
+  };
+
+  document.getElementById('vulin').addEventListener('click', function () {
+    document.getElementById('gps-framenummer').value = 'EFY8053687';
+    document.getElementById('gps-imei').value = '351756051523999';
+    document.getElementById('gps-framenummer').dispatchEvent(new Event('input', { bubbles: true }));
+    document.getElementById('gps-imei').dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}());
+</script>
+
+<script>
+/* ══ HIERONDER HET GEDRAG VAN DE WIDGET, LETTERLIJK UIT gps-registratie.html ══
+   Enige verschil: ENDPOINT wijst naar het demo-adres hierboven.              */
+(function () {
+  'use strict';
+
+  var ENDPOINT = '/demo/gps-activatie';
+
+  var TEKST = {
+    frameNumberRequired: 'Dit veld is verplicht',
+    frameNumberOnlyCharacters: 'Voer alleen cijfers en letters in',
+    frameNumberMinLength: 'Voer minimaal 10 tekens in',
+    imeiRequired: 'Dit veld is verplicht',
+    imeiOnlyDigits: 'Voer alleen cijfers in',
+    imeiLength: 'Het IMEI-nummer moet tussen de 15 en 17 cijfers lang zijn',
+    succes: 'De aanvraag is geslaagd',
+    algemeneFout: 'Er is iets fout gegaan. Probeer het opnieuw.',
+    ERROR_CLAIM_DEVICE: 'Door een onverwachte fout is het niet mogelijk de GPS-module te koppelen',
+    ERROR_REPEATED_IMEI: 'Dubbele IMEI. Het IMEI-nummer bestaat al',
+    geenEndpoint: 'Het endpoint is nog niet ingesteld — zie de instellingen bovenin deze widget.'
+  };
+
+  var REGELS = {
+    frameNumber: [
+      { toets: function (w) { return w.trim().length > 0; }, melding: TEKST.frameNumberRequired },
+      { toets: function (w) { return /^[0-9a-zA-Z]+$/.test(w); }, melding: TEKST.frameNumberOnlyCharacters },
+      { toets: function (w) { return w.length >= 10; }, melding: TEKST.frameNumberMinLength }
+    ],
+    IMEI: [
+      { toets: function (w) { return w.trim().length > 0; }, melding: TEKST.imeiRequired },
+      { toets: function (w) { return /^[0-9]+$/.test(w); }, melding: TEKST.imeiOnlyDigits },
+      { toets: function (w) { return w.length >= 15 && w.length <= 17; }, melding: TEKST.imeiLength }
+    ]
+  };
+
+  var widget = document.getElementById('gps-widget');
+  if (!widget) { return; }
+
+  var form = widget.querySelector('.gps-widget__form');
+  var knop = widget.querySelector('.gps-widget__knop');
+  var melding = widget.querySelector('[data-melding]');
+  var velden = {
+    frameNumber: widget.querySelector('[name="frameNumber"]'),
+    IMEI: widget.querySelector('[name="IMEI"]')
+  };
+  var aangeraakt = { frameNumber: false, IMEI: false };
+
+  function foutVan(naam) {
+    var waarde = velden[naam].value;
+    var regels = REGELS[naam];
+    for (var i = 0; i < regels.length; i += 1) {
+      if (!regels[i].toets(waarde)) { return regels[i].melding; }
+    }
+    return null;
+  }
+
+  function toonFouten() {
+    Object.keys(velden).forEach(function (naam) {
+      var fout = aangeraakt[naam] ? foutVan(naam) : null;
+      widget.querySelector('[data-fout-voor="' + naam + '"]').textContent = fout || '';
+      velden[naam].setAttribute('aria-invalid', fout ? 'true' : 'false');
+    });
+  }
+
+  function zetMelding(tekst, soort) {
+    melding.textContent = tekst || '';
+    if (soort) { melding.setAttribute('data-soort', soort); }
+    else { melding.removeAttribute('data-soort'); }
+  }
+
+  Object.keys(velden).forEach(function (naam) {
+    velden[naam].addEventListener('input', toonFouten);
+    velden[naam].addEventListener('blur', function () { aangeraakt[naam] = true; toonFouten(); });
+  });
+
+  form.addEventListener('submit', function (gebeurtenis) {
+    gebeurtenis.preventDefault();
+    aangeraakt.frameNumber = true;
+    aangeraakt.IMEI = true;
+    toonFouten();
+    if (foutVan('frameNumber') || foutVan('IMEI')) { return; }
+    if (!ENDPOINT) { zetMelding(TEKST.geenEndpoint, 'fout'); return; }
+
+    knop.disabled = true;
+    zetMelding('');
+
+    fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ frameNumber: velden.frameNumber.value, IMEI: velden.IMEI.value })
+    })
+      .then(function (antwoord) {
+        return antwoord.json()
+          .catch(function () { return {}; })
+          .then(function (lichaam) { return { ok: antwoord.ok, lichaam: lichaam }; });
+      })
+      .then(function (uitkomst) {
+        if (uitkomst.ok) {
+          zetMelding(TEKST.succes, 'goed');
+          velden.frameNumber.value = '';
+          velden.IMEI.value = '';
+          aangeraakt.frameNumber = false;
+          aangeraakt.IMEI = false;
+          toonFouten();
+          return;
+        }
+        var code = uitkomst.lichaam && uitkomst.lichaam.status;
+        zetMelding(TEKST[code] || TEKST.algemeneFout, 'fout');
+      })
+      .catch(function () { zetMelding(TEKST.algemeneFout, 'fout'); })
+      .then(function () { knop.disabled = false; });
+  });
+}());
+</script>
+</body>
+</html>

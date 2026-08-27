@@ -1,0 +1,373 @@
+<!--
+  ═══════════════════════════════════════════════════════════════════════════
+   REGISTREER GPS-MODULE — losse widget voor WordPress / Elementor
+  ═══════════════════════════════════════════════════════════════════════════
+
+  Wat dit is
+  ----------
+  Het formulier waarmee een dealer een GPS-module aan een fiets koppelt, zoals
+  het in het QWIC-dealerportaal werkt. Eén bestand: opmaak, stijl en gedrag
+  zitten er allemaal in. Geen bibliotheken, geen bouwstap, geen npm.
+
+  Plakken
+  -------
+  Elementor: sleep een widget "HTML" op de pagina en plak dit er in zijn
+  geheel in. Klaar. Werkt ook in een Custom-HTML-blok van Gutenberg, in een
+  pagesjabloon of in een shortcode die HTML teruggeeft.
+
+  HET ENIGE DAT JULLIE MOETEN INVULLEN staat hieronder bij INSTELLINGEN:
+  het adres van jullie eigen endpoint. Zolang dat leeg is, doet het formulier
+  alles behalve versturen — handig om eerst de opmaak in te passen.
+
+  Waar dit vandaan komt
+  ---------------------
+  Overgezet uit het scherm /gps van het QWIC-dealerportaal. De validatieregels,
+  de teksten en de drie mogelijke uitkomsten zijn daar één op één van
+  overgenomen; alleen de techniek is anders, omdat brekr.com op WordPress met
+  Elementor draait en het QWIC-portaal op React met Material UI. Een React-
+  component is daar niet te plakken, deze widget wel.
+
+  Wat Brekr zelf moet bouwen
+  --------------------------
+  Eén endpoint. Zie overdracht-brekr/README.md voor de vorm van verzoek en
+  antwoord. Dit formulier praat verder met niets.
+-->
+
+<div class="gps-widget" id="gps-widget">
+  <h2 class="gps-widget__titel">Registreer GPS-module</h2>
+  <p class="gps-widget__uitleg">
+    Hier kunt u de optionele GPS-module koppelen aan een fiets.
+  </p>
+
+  <form class="gps-widget__form" novalidate>
+    <div class="gps-widget__veld">
+      <label class="gps-widget__label" for="gps-framenummer">Framenummer</label>
+      <input
+        class="gps-widget__invoer"
+        id="gps-framenummer"
+        name="frameNumber"
+        type="text"
+        maxlength="50"
+        autocomplete="off"
+        inputmode="text"
+      >
+      <p class="gps-widget__fout" data-fout-voor="frameNumber" role="alert"></p>
+    </div>
+
+    <div class="gps-widget__veld">
+      <label class="gps-widget__label" for="gps-imei">
+        IMEI
+        <button
+          class="gps-widget__info"
+          type="button"
+          aria-label="Wat is een IMEI-nummer?"
+        >i</button>
+        <span class="gps-widget__ballon" role="tooltip">
+          IMEI is een unieke code van 15 tot 17 cijfers voor elk mobiel apparaat.
+          Deze code wordt gebruikt om de GPS-module te identificeren. We hebben
+          het nodig om de juiste GPS-module te claimen, zodat deze geactiveerd
+          kan worden.
+        </span>
+      </label>
+      <input
+        class="gps-widget__invoer"
+        id="gps-imei"
+        name="IMEI"
+        type="text"
+        maxlength="17"
+        autocomplete="off"
+        inputmode="numeric"
+      >
+      <p class="gps-widget__fout" data-fout-voor="IMEI" role="alert"></p>
+    </div>
+
+    <p class="gps-widget__melding" data-melding role="status"></p>
+
+    <button class="gps-widget__knop" type="submit">Indienen</button>
+  </form>
+</div>
+
+<style>
+/*
+  Alle kleuren en maten staan als variabelen bovenaan, zodat de widget in de
+  huisstijl te zetten is zonder de rest aan te raken. De klassenamen beginnen
+  allemaal met gps-widget__, dus ze botsen niet met Elementor of met een thema.
+*/
+.gps-widget {
+  --gps-kleur: #111111;              /* accent: knop en focusrand */
+  --gps-kleur-tekst: #111111;
+  --gps-kleur-rand: #cccccc;
+  --gps-kleur-fout: #c0392b;
+  --gps-kleur-goed: #1e7e34;
+  --gps-radius: 4px;
+  --gps-max-breedte: 32rem;
+
+  max-width: var(--gps-max-breedte);
+  color: var(--gps-kleur-tekst);
+  font-family: inherit;               /* neemt het lettertype van het thema over */
+  line-height: 1.5;
+}
+
+.gps-widget__titel { margin: 0 0 .5rem; font-size: 1.5rem; font-weight: 600; }
+.gps-widget__uitleg { margin: 0 0 1.5rem; }
+
+.gps-widget__veld { margin-bottom: 1.25rem; }
+
+.gps-widget__label {
+  display: block;
+  margin-bottom: .35rem;
+  font-size: .9rem;
+  font-weight: 500;
+}
+
+.gps-widget__invoer {
+  width: 100%;
+  box-sizing: border-box;
+  padding: .7rem .8rem;
+  border: 1px solid var(--gps-kleur-rand);
+  border-radius: var(--gps-radius);
+  font: inherit;
+  background: #fff;
+}
+
+.gps-widget__invoer:focus {
+  outline: none;
+  border-color: var(--gps-kleur);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, .08);
+}
+
+.gps-widget__invoer[aria-invalid="true"] { border-color: var(--gps-kleur-fout); }
+
+.gps-widget__fout {
+  margin: .35rem 0 0;
+  min-height: 1.2em;                  /* houdt de hoogte stabiel, geen springende lay-out */
+  color: var(--gps-kleur-fout);
+  font-size: .8rem;
+}
+
+/* Het infoknopje bij IMEI, met een ballon die op hover en op focus verschijnt. */
+.gps-widget__info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-left: .35rem;
+  padding: 0;
+  border: 1px solid var(--gps-kleur-rand);
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: .7rem;
+  font-style: italic;
+  cursor: help;
+  vertical-align: middle;
+}
+
+.gps-widget__ballon {
+  position: absolute;
+  z-index: 10;
+  max-width: 22rem;
+  margin-top: 1.6rem;
+  margin-left: -1rem;
+  padding: .6rem .75rem;
+  border-radius: var(--gps-radius);
+  background: #fff;
+  color: rgba(0, 0, 0, .87);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+  font-size: .8rem;
+  font-weight: 400;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .15s;
+}
+
+.gps-widget__info:hover + .gps-widget__ballon,
+.gps-widget__info:focus + .gps-widget__ballon {
+  opacity: 1;
+  visibility: visible;
+}
+
+.gps-widget__knop {
+  padding: .7rem 1.6rem;
+  border: none;
+  border-radius: var(--gps-radius);
+  background: var(--gps-kleur);
+  color: #fff;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.gps-widget__knop:disabled { opacity: .55; cursor: default; }
+
+.gps-widget__melding {
+  margin: 0 0 1rem;
+  min-height: 1.2em;
+  font-size: .9rem;
+}
+
+.gps-widget__melding[data-soort="fout"] { color: var(--gps-kleur-fout); }
+.gps-widget__melding[data-soort="goed"] { color: var(--gps-kleur-goed); }
+
+@media (max-width: 480px) {
+  .gps-widget__knop { width: 100%; }
+}
+</style>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ══ INSTELLINGEN — dit is het enige dat jullie moeten invullen ══════════ */
+
+  /**
+   * Het adres van jullie eigen endpoint. Zolang dit leeg is, valideert het
+   * formulier wel maar verstuurt het niets; dan verschijnt er een melding dat
+   * het endpoint nog ontbreekt. Zie README.md voor de vorm van verzoek en
+   * antwoord.
+   *
+   * Voorbeeld: '/wp-json/brekr/v1/gps-activatie'
+   */
+  var ENDPOINT = '';
+
+  /* ══ TEKSTEN ═════════════════════════════════════════════════════════════
+     Letterlijk overgenomen uit het QWIC-portaal. De Engelse, Duitse en Franse
+     varianten staan in README.md; vervang de waarden hieronder om van taal te
+     wisselen, of laad ze uit jullie eigen vertaalmechanisme.                */
+
+  var TEKST = {
+    frameNumberRequired: 'Dit veld is verplicht',
+    frameNumberOnlyCharacters: 'Voer alleen cijfers en letters in',
+    frameNumberMinLength: 'Voer minimaal 10 tekens in',
+    imeiRequired: 'Dit veld is verplicht',
+    imeiOnlyDigits: 'Voer alleen cijfers in',
+    imeiLength: 'Het IMEI-nummer moet tussen de 15 en 17 cijfers lang zijn',
+    succes: 'De aanvraag is geslaagd',
+    algemeneFout: 'Er is iets fout gegaan. Probeer het opnieuw.',
+    // De drie uitkomsten die de server kan teruggeven, op statuscode.
+    ERROR_CLAIM_DEVICE: 'Door een onverwachte fout is het niet mogelijk de GPS-module te koppelen',
+    ERROR_REPEATED_IMEI: 'Dubbele IMEI. Het IMEI-nummer bestaat al',
+    geenEndpoint: 'Het endpoint is nog niet ingesteld — zie de instellingen bovenin deze widget.'
+  };
+
+  /* ══ VALIDATIE ═══════════════════════════════════════════════════════════
+     Dezelfde regels als in het QWIC-portaal, in dezelfde vololgorde. Per veld
+     wordt de EERSTE regel getoond die niet klopt, precies zoals daar.        */
+
+  var REGELS = {
+    frameNumber: [
+      { toets: function (w) { return w.trim().length > 0; }, melding: TEKST.frameNumberRequired },
+      { toets: function (w) { return /^[0-9a-zA-Z]+$/.test(w); }, melding: TEKST.frameNumberOnlyCharacters },
+      { toets: function (w) { return w.length >= 10; }, melding: TEKST.frameNumberMinLength }
+    ],
+    IMEI: [
+      { toets: function (w) { return w.trim().length > 0; }, melding: TEKST.imeiRequired },
+      { toets: function (w) { return /^[0-9]+$/.test(w); }, melding: TEKST.imeiOnlyDigits },
+      { toets: function (w) { return w.length >= 15 && w.length <= 17; }, melding: TEKST.imeiLength }
+    ]
+  };
+
+  /* ══ GEDRAG ══════════════════════════════════════════════════════════════ */
+
+  var widget = document.getElementById('gps-widget');
+  if (!widget) { return; }
+
+  var form = widget.querySelector('.gps-widget__form');
+  var knop = widget.querySelector('.gps-widget__knop');
+  var melding = widget.querySelector('[data-melding]');
+  var velden = {
+    frameNumber: widget.querySelector('[name="frameNumber"]'),
+    IMEI: widget.querySelector('[name="IMEI"]')
+  };
+  /* Een veld toont zijn fout pas nadat de gebruiker het heeft verlaten of het
+     formulier heeft ingediend — hetzelfde gedrag als in het portaal. */
+  var aangeraakt = { frameNumber: false, IMEI: false };
+
+  function foutVan(naam) {
+    var waarde = velden[naam].value;
+    var regels = REGELS[naam];
+    for (var i = 0; i < regels.length; i += 1) {
+      if (!regels[i].toets(waarde)) { return regels[i].melding; }
+    }
+    return null;
+  }
+
+  function toonFouten() {
+    Object.keys(velden).forEach(function (naam) {
+      var fout = aangeraakt[naam] ? foutVan(naam) : null;
+      var doel = widget.querySelector('[data-fout-voor="' + naam + '"]');
+      doel.textContent = fout || '';
+      velden[naam].setAttribute('aria-invalid', fout ? 'true' : 'false');
+    });
+  }
+
+  function zetMelding(tekst, soort) {
+    melding.textContent = tekst || '';
+    if (soort) { melding.setAttribute('data-soort', soort); }
+    else { melding.removeAttribute('data-soort'); }
+  }
+
+  Object.keys(velden).forEach(function (naam) {
+    velden[naam].addEventListener('input', toonFouten);
+    velden[naam].addEventListener('blur', function () {
+      aangeraakt[naam] = true;
+      toonFouten();
+    });
+  });
+
+  form.addEventListener('submit', function (gebeurtenis) {
+    gebeurtenis.preventDefault();
+
+    // Bij indienen gelden alle velden als aangeraakt, zodat openstaande
+    // meldingen alsnog verschijnen.
+    aangeraakt.frameNumber = true;
+    aangeraakt.IMEI = true;
+    toonFouten();
+
+    if (foutVan('frameNumber') || foutVan('IMEI')) { return; }
+
+    if (!ENDPOINT) {
+      zetMelding(TEKST.geenEndpoint, 'fout');
+      return;
+    }
+
+    knop.disabled = true;
+    zetMelding('');
+
+    fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        frameNumber: velden.frameNumber.value,
+        IMEI: velden.IMEI.value
+      })
+    })
+      .then(function (antwoord) {
+        return antwoord.json()
+          .catch(function () { return {}; })
+          .then(function (lichaam) { return { ok: antwoord.ok, lichaam: lichaam }; });
+      })
+      .then(function (uitkomst) {
+        if (uitkomst.ok) {
+          zetMelding(TEKST.succes, 'goed');
+          // Geslaagd: velden leeg, meldingen weg — zoals het portaal doet.
+          velden.frameNumber.value = '';
+          velden.IMEI.value = '';
+          aangeraakt.frameNumber = false;
+          aangeraakt.IMEI = false;
+          toonFouten();
+          return;
+        }
+        var code = uitkomst.lichaam && uitkomst.lichaam.status;
+        zetMelding(TEKST[code] || TEKST.algemeneFout, 'fout');
+      })
+      .catch(function () {
+        zetMelding(TEKST.algemeneFout, 'fout');
+      })
+      .then(function () {
+        knop.disabled = false;
+      });
+  });
+}());
+</script>
