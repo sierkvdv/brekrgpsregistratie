@@ -56,12 +56,20 @@ Zet hem in `wp-content/plugins/gps-registratie/`, zet de plugin aan, en het adre
 met elkaar.
 
 Die plugin doet alles: de invoer opnieuw controleren aan de serverkant, een rem tegen het raden
-van IMEI-nummers, en het vertalen van het antwoord naar de drie uitkomsten die het formulier
-kent. **Eén functie is bewust leeg gelaten**: de aanroep naar de leverancier van de GPS-modules.
+van IMEI-nummers, en het vertalen van het antwoord naar de uitkomsten die het formulier kent.
+**Eén functie is bewust leeg gelaten**: de aanroep naar de leverancier van de GPS-modules.
 Daarvoor is een account en hun documentatie nodig, en die kan hier niet in.
 
-Zolang die functie leeg is, wijst het endpoint elke aanvraag netjes af en schrijft het een regel
-in het logboek — zodat je de hele keten kunt testen voordat de koppeling er is.
+Het adres en de sleutel van de leverancier horen niet in de plugin maar in `wp-config.php`:
+
+```php
+define('GPSREG_ADRES',   'https://.../claim');
+define('GPSREG_SLEUTEL', '...');
+```
+
+Zolang een van die twee ontbreekt gaat er niets de deur uit: het endpoint wijst elke aanvraag
+netjes af en schrijft een regel in het logboek — zodat je de hele keten kunt testen voordat de
+koppeling er is.
 
 Wat je bij de leverancier moet opvragen staat in de plugin zelf; het is een lijstje van vier
 vragen.
@@ -91,7 +99,12 @@ Content-Type: application/json
 |---|---|
 | `ERROR_CLAIM_DEVICE` | Door een onverwachte fout is het niet mogelijk de GPS-module te koppelen |
 | `ERROR_REPEATED_IMEI` | Dubbele IMEI. Het IMEI-nummer bestaat al |
+| `ERROR_RATE_LIMIT` (statuscode `429`) | Te veel pogingen kort achter elkaar. Wacht een minuut en probeer het opnieuw. |
 | *iets anders, of geen `status`* | Er is iets fout gegaan. Probeer het opnieuw. |
+
+De eerste twee komen letterlijk uit het bestaande dealerportaal van QWIC. `ERROR_RATE_LIMIT`
+hoort bij de rem in de plugin: het formulier herkent statuscode `429` ook zonder dat veld, want
+een firewall of CDN kan die code teruggeven zonder ons lichaam mee te sturen.
 
 De veldnaam `imei` is met kleine letters — zo staat hij ook in het bestaande dealerportaal.
 

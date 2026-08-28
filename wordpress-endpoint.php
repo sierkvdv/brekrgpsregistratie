@@ -41,13 +41,31 @@ if (!defined('ABSPATH')) {
     exit; // rechtstreeks opvragen van dit bestand heeft geen zin
 }
 
-/* ══ De drie uitkomsten die het formulier kent ═══════════════════════════════
-   Meer zijn het er niet. Wat de leverancier ook teruggeeft, het wordt naar een
-   van deze drie vertaald — precies zoals het bestaande dealerportaal doet.    */
+/* ══ De uitkomsten die het formulier kent ════════════════════════════════════
+   De eerste drie komen letterlijk uit het bestaande dealerportaal van QWIC:
+   wat de leverancier ook teruggeeft, het wordt naar een van die drie vertaald.
+   De vierde is van deze plugin zelf en hoort bij de rem verderop — het portaal
+   kent hem niet, want daar zit het formulier al achter een dealerlogin.       */
 
 const GPSREG_OK                  = 'OK';
 const GPSREG_ERROR_CLAIM_DEVICE  = 'ERROR_CLAIM_DEVICE';
 const GPSREG_ERROR_REPEATED_IMEI = 'ERROR_REPEATED_IMEI';
+const GPSREG_ERROR_RATE_LIMIT    = 'ERROR_RATE_LIMIT';
+
+/**
+ * HET ADRES VAN DE LEVERANCIER.
+ *
+ * Zet dit, net als de sleutel, in wp-config.php:
+ *
+ *     define('GPSREG_ADRES',   'https://.../claim');
+ *     define('GPSREG_SLEUTEL', '...');
+ *
+ * Zolang een van de twee ontbreekt gaat er niets de deur uit — zie
+ * `gpsreg_claim_bij_leverancier` verderop.
+ */
+if (!defined('GPSREG_ADRES')) {
+    define('GPSREG_ADRES', '');
+}
 
 /* ══ Het endpoint aanmelden ═════════════════════════════════════════════════ */
 
@@ -85,8 +103,14 @@ function gpsreg_verwerk_aanvraag(WP_REST_Request $verzoek)
      * endpoint duizenden keren aan te roepen. Vijf pogingen per IP per minuut is
      * ruim voor echt gebruik en onbruikbaar voor raden.
      */
+    /*
+     * EIGEN SIGNAAL BIJ TE VEEL POGINGEN. Hier stond `GPSREG_ERROR_CLAIM_DEVICE`,
+     * en dat toont het formulier als "Door een onverwachte fout is het niet
+     * mogelijk de GPS-module te koppelen" — terwijl er niets kapot is en even
+     * wachten genoeg is. Het formulier herkent de statuscode 429 apart.
+     */
     if (!gpsreg_binnen_limiet()) {
-        return new WP_REST_Response(['status' => GPSREG_ERROR_CLAIM_DEVICE], 429);
+        return new WP_REST_Response(['status' => GPSREG_ERROR_RATE_LIMIT], 429);
     }
 
     $uitkomst = gpsreg_claim_bij_leverancier($frame, $imei);
@@ -104,10 +128,33 @@ function gpsreg_antwoord_fout($status, $reden)
     return new WP_REST_Response(['status' => $status], 400);
 }
 
+/**
+ * HET IP VAN DE BEZOEKER, OOK ACHTER EEN PROXY.
+ *
+ * `REMOTE_ADDR` is het adres van wie de webserver aanspreekt. Staat er een
+ * Cloudflare of een andere reverse proxy voor de site — bij WordPress eerder
+ * regel dan uitzondering — dan is dat voor ELKE bezoeker hetzelfde adres, en
+ * zit de hele site samen op de limiet hieronder. Daarom eerst de koppen die
+ * zo'n proxy meestuurt, met `REMOTE_ADDR` als terugval.
+ *
+ * Let op de volgorde in `X-Forwarded-For`: de eerste waarde is de bezoeker,
+ * de rest zijn de proxies ertussen.
+ */
+function gpsreg_bezoeker_ip()
+{
+    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+        return (string) $_SERVER['HTTP_CF_CONNECTING_IP'];
+    }
+    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $delen = explode(',', (string) $_SERVER['HTTP_X_FORWARDED_FOR']);
+        return trim($delen[0]);
+    }
+    return isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : 'onbekend';
+}
+
 function gpsreg_binnen_limiet()
 {
-    $ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'onbekend';
-    $sleutel = 'gpsreg_' . md5($ip);
+    $sleutel = 'gpsreg_' . md5(gpsreg_bezoeker_ip());
     $aantal = (int) get_transient($sleutel);
 
     if ($aantal >= 5) {
@@ -132,16 +179,24 @@ function gpsreg_binnen_limiet()
  *      ja, waar in het verzoek: een kop, of in het lichaam?).
  *   2. De aanroep om een apparaat te claimen: welk pad, welke velden, en of het
  *      IMEI daar hetzelfde heet.
- *   3. Hoe ze laten weten dat een IMEI al geclaimd is. Dat is de enige fout die
- *      apart getoond wordt, dus die moet herkenbaar zijn — een statuscode, een
- *      foutcode in het lichaam, of allebei.
+ *   3. Hoe ze laten weten dat een IMEI al geclaimd is. Het formulier toont twee
+ *      fouten met een eigen tekst — "koppelen mislukt" en "dubbele IMEI" — en
+ *      alleen die tweede is uit het antwoord van de leverancier af te leiden.
+ *      Alles wat je niet als dubbele IMEI herkent wordt "koppelen mislukt", dus
+ *      vraag hoe ze dit aangeven: een statuscode, een foutcode in het lichaam,
+ *      of allebei.
  *   4. Of het claimen en het koppelen aan een framenummer één aanroep is of twee.
  *
- * Meer heb je niet nodig. Zet de sleutel NIET in dit bestand maar in wp-config.php
- * (`define('GPSREG_SLEUTEL', '...');`) — dan staat hij niet in de broncode en niet
- * in een back-up van de plugin-map.
+ * Meer heb je niet nodig. Zet het adres en de sleutel NIET in dit bestand maar in
+ * wp-config.php:
  *
- * @return string een van de drie GPSREG_-waarden hierboven
+ *     define('GPSREG_ADRES',   'https://.../claim');
+ *     define('GPSREG_SLEUTEL', '...');
+ *
+ * Dan staan ze niet in de broncode en niet in een back-up van de plugin-map, en
+ * kun je ze aanpassen zonder de plugin te wijzigen.
+ *
+ * @return string een van de GPSREG_-waarden bovenaan dit bestand
  */
 function gpsreg_claim_bij_leverancier($frame, $imei)
 {
@@ -151,18 +206,26 @@ function gpsreg_claim_bij_leverancier($frame, $imei)
        mogelijk de GPS-module te koppelen". Zo kun je de hele keten testen
        voordat de koppeling er is. Haal dit blok weg zodra de aanroep erin staat. */
 
-    if (!defined('GPSREG_SLEUTEL')) {
-        error_log('[gps-registratie] nog geen koppeling ingesteld — aanvraag voor frame ' . $frame . ' niet doorgezet');
+    /*
+     * HIER STOND ALLEEN EEN CONTROLE OP DE SLEUTEL. Dat was te weinig: wie de
+     * sleutel in wp-config zet vóórdat het adres bekend is, komt langs deze rem
+     * en belandt op de plaatshouder hieronder. Dat adres bestaat niet, dus elke
+     * inzending hing twintig seconden (`timeout`) en faalde daarna alsnog.
+     * Nu moeten ALLEBEI ingevuld zijn voordat er iets de deur uit gaat.
+     */
+    if (GPSREG_ADRES === '' || !defined('GPSREG_SLEUTEL')) {
+        error_log('[gps-registratie] nog geen koppeling ingesteld (adres of sleutel ontbreekt) — aanvraag niet doorgezet');
         return GPSREG_ERROR_CLAIM_DEVICE;
     }
 
     /* ── DE ECHTE AANROEP ────────────────────────────────────────────────────
-       Hieronder staat de VORM, niet de inhoud: het adres, de kop en de veldnamen
-       zijn plaatshouders, want die staan in de documentatie van de leverancier.
+       Hieronder staat de VORM, niet de inhoud: het adres komt uit wp-config en
+       de kop en de veldnamen zijn plaatshouders, want die staan in de
+       documentatie van de leverancier.
        Vul ze in en dit werkt. Er is bewust niets ingevuld wat niet vaststaat —
        een verzonnen adres zou stilletjes falen en dat is erger dan leeg laten. */
 
-    $antwoord = wp_remote_post('https://VUL-HET-ADRES-VAN-DE-LEVERANCIER-IN/claim', [
+    $antwoord = wp_remote_post(GPSREG_ADRES, [
         'timeout' => 20,
         'headers' => [
             'Content-Type'  => 'application/json',
@@ -187,17 +250,25 @@ function gpsreg_claim_bij_leverancier($frame, $imei)
     }
 
     /*
-     * DE ENIGE FOUT DIE APART GETOOND WORDT: het IMEI is al geclaimd. Hoe de
+     * DE FOUT DIE EEN EIGEN TEKST KRIJGT: het IMEI is al geclaimd. Hoe de
      * leverancier dat aangeeft moet je bij hen navragen (punt 3 hierboven).
      * Pas de voorwaarde hieronder aan zodra je dat weet; nu is het een gok en
-     * daarom bewust ruim gehouden.
+     * daarom bewust ruim gehouden. Wat er niet aan voldoet wordt "koppelen
+     * mislukt" — de verzamelbak, precies zoals in het dealerportaal van QWIC.
      */
     $melding = isset($lichaam['message']) ? strtolower($lichaam['message']) : '';
     if ($code === 409 || strpos($melding, 'already') !== false || strpos($melding, 'duplicate') !== false) {
         return GPSREG_ERROR_REPEATED_IMEI;
     }
 
-    error_log('[gps-registratie] leverancier gaf ' . $code . ': ' . wp_remote_retrieve_body($antwoord));
+    /*
+     * WEL DE STATUSCODE, NIET HET HELE ANTWOORD. Het logboek van WordPress is
+     * vaak breder leesbaar dan de rest van de site, en in het antwoord van de
+     * leverancier kunnen apparaat- en klantgegevens staan. Tweehonderd tekens
+     * is genoeg om te zien wat er misging.
+     */
+    error_log('[gps-registratie] leverancier gaf ' . $code . ': '
+        . substr((string) wp_remote_retrieve_body($antwoord), 0, 200));
     return GPSREG_ERROR_CLAIM_DEVICE;
 }
 

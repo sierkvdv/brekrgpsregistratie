@@ -86,18 +86,22 @@
           </div>
 
           <div class="gps-widget__veld">
-            <label class="gps-widget__label" for="gps-imei">
-              IMEI
+            <!-- De vraagtekenknop stond eerder BINNEN het <label>. Dat is ongeldige HTML:
+                 een label mag geen ander bedienbaar element bevatten dan het veld waar het
+                 bij hoort. Knop en ballon staan nu naast het label, in een eigen regel. De
+                 ballon blijft de directe buur van de knop, want daar hangt de CSS aan. -->
+            <span class="gps-widget__labelrij">
+              <label class="gps-widget__label" for="gps-imei">IMEI</label>
               <button class="gps-widget__info" type="button" aria-label="Wat is een IMEI-nummer?">i</button>
               <span class="gps-widget__ballon" role="tooltip">
                 IMEI is een unieke code van 15 tot 17 cijfers voor elk mobiel apparaat.
                 Deze code wordt gebruikt om de GPS-module te identificeren. We hebben het nodig
                 om de juiste GPS-module te claimen, zodat deze geactiveerd kan worden.
               </span>
-            </label>
-            <input class="gps-widget__invoer" id="gps-imei" name="IMEI"
+            </span>
+            <input class="gps-widget__invoer" id="gps-imei" name="imei"
                    type="text" maxlength="17" autocomplete="off" inputmode="numeric">
-            <p class="gps-widget__fout" data-fout-voor="IMEI" role="alert"></p>
+            <p class="gps-widget__fout" data-fout-voor="imei" role="alert"></p>
           </div>
 
           <p class="gps-widget__melding" data-melding role="status"></p>
@@ -114,6 +118,7 @@
       <label class="keuze"><input type="radio" name="uitkomst" value="ok" checked> Geslaagd (200)</label>
       <label class="keuze"><input type="radio" name="uitkomst" value="ERROR_REPEATED_IMEI"> Dubbele IMEI</label>
       <label class="keuze"><input type="radio" name="uitkomst" value="ERROR_CLAIM_DEVICE"> Koppelen mislukt</label>
+      <label class="keuze"><input type="radio" name="uitkomst" value="ERROR_RATE_LIMIT"> Te veel pogingen (429)</label>
       <label class="keuze"><input type="radio" name="uitkomst" value="onbekend"> Onbekende fout</label>
       <label class="keuze"><input type="radio" name="uitkomst" value="offline"> Server onbereikbaar</label>
 
@@ -152,6 +157,10 @@
 .gps-widget__uitleg { margin: 0 0 1.5rem; }
 .gps-widget__veld { margin-bottom: 1.25rem; }
 .gps-widget__label { display: block; margin-bottom: .35rem; font-size: .9rem; font-weight: 500; }
+/* Label en vraagtekenknop op een rij. De knop zat vroeger IN het label; daar hield
+   de uitlijning zichzelf op. Nu doet deze regel dat. */
+.gps-widget__labelrij { display: flex; align-items: center; margin-bottom: .35rem; }
+.gps-widget__labelrij .gps-widget__label { margin-bottom: 0; }
 .gps-widget__invoer {
   width: 100%; box-sizing: border-box; padding: .7rem .8rem;
   border: 1px solid var(--gps-kleur-rand); border-radius: var(--gps-radius);
@@ -225,6 +234,13 @@
           klaar(new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }));
           return;
         }
+        if (keuze === 'ERROR_RATE_LIMIT') {
+          // De rem in de WordPress-plugin: statuscode 429, niet 400.
+          var rem = JSON.stringify({ status: 'ERROR_RATE_LIMIT' });
+          schrijf('     <- 429  ' + rem);
+          klaar(new Response(rem, { status: 429, headers: { 'Content-Type': 'application/json' } }));
+          return;
+        }
         var lichaam = keuze === 'onbekend'
           ? JSON.stringify({ status: 'IETS_ANDERS' })
           : JSON.stringify({ status: keuze });
@@ -262,17 +278,20 @@
     algemeneFout: 'Er is iets fout gegaan. Probeer het opnieuw.',
     ERROR_CLAIM_DEVICE: 'Door een onverwachte fout is het niet mogelijk de GPS-module te koppelen',
     ERROR_REPEATED_IMEI: 'Dubbele IMEI. Het IMEI-nummer bestaat al',
+    ERROR_RATE_LIMIT: 'Te veel pogingen kort achter elkaar. Wacht een minuut en probeer het opnieuw.',
     geenEndpoint: 'Het endpoint is nog niet ingesteld — zie de instellingen bovenin deze widget.'
   };
 
   var REGELS = {
     frameNumber: [
-      { toets: function (w) { return w.trim().length > 0; }, melding: TEKST.frameNumberRequired },
+      /* GEEN trim(): het yup-schema in het portaal doet dat ook niet, dus een veld met
+         alleen spaties valt daar door de VOLGENDE regel en niet door deze. */
+      { toets: function (w) { return w.length > 0; }, melding: TEKST.frameNumberRequired },
       { toets: function (w) { return /^[0-9a-zA-Z]+$/.test(w); }, melding: TEKST.frameNumberOnlyCharacters },
       { toets: function (w) { return w.length >= 10; }, melding: TEKST.frameNumberMinLength }
     ],
-    IMEI: [
-      { toets: function (w) { return w.trim().length > 0; }, melding: TEKST.imeiRequired },
+    imei: [
+      { toets: function (w) { return w.length > 0; }, melding: TEKST.imeiRequired },
       { toets: function (w) { return /^[0-9]+$/.test(w); }, melding: TEKST.imeiOnlyDigits },
       { toets: function (w) { return w.length >= 15 && w.length <= 17; }, melding: TEKST.imeiLength }
     ]
@@ -286,9 +305,9 @@
   var melding = widget.querySelector('[data-melding]');
   var velden = {
     frameNumber: widget.querySelector('[name="frameNumber"]'),
-    IMEI: widget.querySelector('[name="IMEI"]')
+    imei: widget.querySelector('[name="imei"]')
   };
-  var aangeraakt = { frameNumber: false, IMEI: false };
+  var aangeraakt = { frameNumber: false, imei: false };
 
   function foutVan(naam) {
     var waarde = velden[naam].value;
@@ -321,9 +340,9 @@
   form.addEventListener('submit', function (gebeurtenis) {
     gebeurtenis.preventDefault();
     aangeraakt.frameNumber = true;
-    aangeraakt.IMEI = true;
+    aangeraakt.imei = true;
     toonFouten();
-    if (foutVan('frameNumber') || foutVan('IMEI')) { return; }
+    if (foutVan('frameNumber') || foutVan('imei')) { return; }
     if (!ENDPOINT) { zetMelding(TEKST.geenEndpoint, 'fout'); return; }
 
     knop.disabled = true;
@@ -332,25 +351,38 @@
     fetch(ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ frameNumber: velden.frameNumber.value, imei: velden.IMEI.value })
+      body: JSON.stringify({ frameNumber: velden.frameNumber.value, imei: velden.imei.value })
     })
       .then(function (antwoord) {
         return antwoord.json()
           .catch(function () { return {}; })
-          .then(function (lichaam) { return { ok: antwoord.ok, lichaam: lichaam }; });
+          .then(function (lichaam) {
+            return { ok: antwoord.ok, status: antwoord.status, lichaam: lichaam };
+          });
       })
       .then(function (uitkomst) {
         if (uitkomst.ok) {
           zetMelding(TEKST.succes, 'goed');
           velden.frameNumber.value = '';
-          velden.IMEI.value = '';
+          velden.imei.value = '';
           aangeraakt.frameNumber = false;
-          aangeraakt.IMEI = false;
+          aangeraakt.imei = false;
           toonFouten();
           return;
         }
+        /*
+         * ALLEEN EIGEN SLEUTELS. `TEKST[code]` zocht rechtstreeks op het object,
+         * dus een `status` van "constructor" of "toString" zette JavaScript-broncode
+         * in de melding op het scherm. Nu telt alleen wat we zelf hebben neergezet.
+         *
+         * Statuscode 429 is de rem in de plugin. Sommige tussenlagen (een firewall,
+         * een CDN) geven die terug zonder ons lichaam mee te sturen; daarom wordt
+         * hier ook op de HTTP-code zelf gekeken.
+         */
         var code = uitkomst.lichaam && uitkomst.lichaam.status;
-        zetMelding(TEKST[code] || TEKST.algemeneFout, 'fout');
+        if (uitkomst.status === 429) { code = 'ERROR_RATE_LIMIT'; }
+        var heeft = Object.prototype.hasOwnProperty.call(TEKST, code);
+        zetMelding(heeft ? TEKST[code] : TEKST.algemeneFout, 'fout');
       })
       .catch(function () { zetMelding(TEKST.algemeneFout, 'fout'); })
       .then(function () { knop.disabled = false; });
